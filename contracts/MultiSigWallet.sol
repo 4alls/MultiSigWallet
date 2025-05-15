@@ -4,7 +4,14 @@ pragma solidity 0.8.30;
 
 contract MultiSigWallet {
 
+    struct Transaction {
+        address to;
+        uint value;
+        uint votes;
+    }
+
     uint public quorum;
+    Transaction[] public transactions;
 
     mapping(address account => bool isSigner) public signers;
 
@@ -15,5 +22,10 @@ contract MultiSigWallet {
             address signer = _signers[i];
             signers[signer] = true;
         }
+    }
+
+    function proposeTransaction(address _to, uint _value) external {
+        require(signers[msg.sender] == true, "Not signer");
+        transactions.push(Transaction({to: _to, value: _value, votes: 1}));
     }
 }
