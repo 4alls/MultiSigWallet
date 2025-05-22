@@ -2,11 +2,15 @@
 
 pragma solidity 0.8.30;
 
+/// @title Wallet mulit-signatures
+/// @author Thibaut Baudry
+/// @notice Ce contrat intelligent représente une wallet multiSig
+
 contract MultiSigWallet {
 
     struct Transaction {
         address to;
-        uint value;
+        uint amount;
         uint votes;
         uint deadline;
         bool executed;
@@ -18,11 +22,10 @@ contract MultiSigWallet {
     mapping(address account => bool isSigner) public signers;
     mapping(uint id => mapping(address signer => bool validated)) public validations;
 
-    modifier onlySigner() {
-        require(signers[msg.sender] == true, "Not signer");
-        _;
-    }
-
+    /// @dev Définit le quorum
+    /// @dev Définit les addresses données en paramètre comme signataires de la wallet
+    /// @param _quorum Nombre nécessaire pour effectuer des transactions avec cette wallet
+    /// @param _signers Tableau d'addresses des signataires
     constructor(uint _quorum, address[] memory _signers) {
         require(_quorum > 1 && _quorum <= _signers.length);
         quorum = _quorum;
@@ -36,16 +39,35 @@ contract MultiSigWallet {
         }
     }
 
+    /// @dev S'assure que l'appelant d'une fonction est enregistré comme signataire de la wallet
+    modifier onlySigner() {
+        require(signers[msg.sender] == true, "Not signer");
+        _;
+    }
+
+    /// @notice Récupère le nombre de transactions
+    /// @return uint Le nombre de transactions
     function transactionCount() external view returns (uint) {
         return transactions.length;
     }
 
-    function proposeTransaction(address _to, uint _value) external onlySigner {
-        uint id = transactions.length;
-        transactions.push(Transaction({to: _to, value: _value, votes: 1, deadline: block.timestamp + 1 days, executed: false}));
-        validations[id][msg.sender] = true;
+    /// @notice Ajoute une transaction dans le tableau de transactions en attente
+    /// @notice Attribue un vote automatique à cette transaction du fait de la proposition
+    /// @notice Fixe la deadline pour l'éxecution de la transaction à 1 jour
+    /// @notice Enregistre la validation de la transaction par le signataire ayant proposé la transaction
+    /// @dev Ne peut être exécutée que par un signataire de la wallet
+    /// @param _to Le destinataire de la transaction
+    /// @param _amount Le montant de la transaction
+    function proposeTransaction(address _to, uint _amount) external onlySigner {
+        transactions.push(Transaction({to: _to, amount: _amount, votes: 1, deadline: block.timestamp + 1 days, executed: false}));
+        validations[transactions.length][msg.sender] = true;
     }
 
+    /// @notice Attribue un vote à la transaction
+    /// @notice Enregistre la validation de la transaction par le signataire ayant validé la transaction
+    /// @notice Exécute la transaction si son nombre de votes est supérieur ou égal ou quorum
+    /// @dev Ne peut être exécutée que par un signataire de la wallet
+    /// @param _id Le numéro de la transaction que l'on veut exécuter
     function validateTransaction(uint _id) external onlySigner {
         require(validations[_id][msg.sender] == false, "Already validated");
         require(transactions[_id].executed == false, "Already executed");
@@ -56,11 +78,11 @@ contract MultiSigWallet {
 
         if (transactions[_id].votes >= quorum) {
             address payable to = payable(transactions[_id].to);
-            uint value = transactions[_id].value;
-            to.transfer(value);
+            to.transfer(transactions[_id].amount);
         }
     }
 
+    /// @notice Permet à la wallet de recevoir des fonds :)
     receive() external payable {}
 }
 
